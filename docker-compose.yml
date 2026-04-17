@@ -1,0 +1,16 @@
+services:
+  ton-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ton-worker-experthub
+    ports:
+      - "8081:8081"
+    environment:
+      PORT: 8081
+      TON_WORKER_AUTH_TOKEN: local-dev-token
+      TON_NETWORK: testnet
+    volumes:
+      - ./:/app
+      - /app/node_modules
+    restart: unless-stopped
