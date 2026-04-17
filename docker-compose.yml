@@ -7,9 +7,13 @@ services:
     ports:
       - "8081:8081"
     environment:
-      PORT: 8081
-      TON_WORKER_AUTH_TOKEN: local-dev-token
-      TON_NETWORK: testnet
+      - PORT=${PORT}
+      - TON_WORKER_AUTH_TOKEN=${TON_WORKER_AUTH_TOKEN}
+      - TON_NETWORK=${TON_NETWORK}
+      - TON_RPC_ENDPOINT=${TON_RPC_ENDPOINT}
+      - TON_API_KEY=${TON_API_KEY}
+      - TON_CONTROLLER_MNEMONIC=${TON_CONTROLLER_MNEMONIC}
+      - BOOKING_ESCROW_CODE_BOC=${BOOKING_ESCROW_CODE_BOC}
     volumes:
       - ./:/app
       - /app/node_modules
