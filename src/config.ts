@@ -1,6 +1,6 @@
 import dotenv from 'dotenv';
 
-dotenv.config();
+dotenv.config({ path: '.env' });
 
 function requireEnv(name: string): string {
     const value = process.env[name];
@@ -13,8 +13,10 @@ function requireEnv(name: string): string {
 export const config = {
     port: Number(process.env.PORT || 8081),
     authToken: process.env.TON_WORKER_AUTH_TOKEN?.trim() || '',
+    tonNetwork: process.env.TON_NETWORK?.trim() || 'testnet',
     tonEndpoint: requireEnv('TON_RPC_ENDPOINT'),
     tonApiKey: process.env.TON_API_KEY?.trim() || '',
     controllerMnemonic: requireEnv('TON_CONTROLLER_MNEMONIC'),
-    bookingEscrowCodeBoc: requireEnv('BOOKING_ESCROW_CODE_BOC')
+    bookingEscrowArtifactPath:
+        process.env.BOOKING_ESCROW_ARTIFACT_PATH?.trim() || 'build/BookingEscrow.compiled.json'
 };

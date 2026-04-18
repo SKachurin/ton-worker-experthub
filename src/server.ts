@@ -1,7 +1,7 @@
 import express, { type NextFunction, type Request, type Response } from 'express';
-import { config } from './config.js';
-import { contractActionRequestSchema, prepareBookingContractRequestSchema } from './dto.js';
-import { TonWorkerService } from './service.js';
+import { config } from './config';
+import { contractActionRequestSchema, prepareBookingContractRequestSchema } from './dto';
+import { TonWorkerService } from './service';
 
 const app = express();
 const service = new TonWorkerService();
@@ -26,7 +26,8 @@ function requireInternalAuth(req: Request, res: Response, next: NextFunction): v
 app.get('/health', (_req, res) => {
     res.json({
         ok: true,
-        service: 'ton-worker'
+        service: 'ton-worker',
+        network: config.tonNetwork
     });
 });
 

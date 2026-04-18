@@ -2,14 +2,17 @@
   "name": "ton-worker-experthub",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "start": "node dist/src/server.js",
     "build": "tsc -p .",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "blueprint:create": "blueprint create",
+    "blueprint:build": "blueprint build",
+    "blueprint:build:booking": "blueprint build BookingEscrow"
   },
   "dependencies": {
+    "@ton/blueprint": "^0.36.0",
     "@ton/core": "^0.62.0",
     "@ton/crypto": "^3.3.0",
     "@ton/ton": "^15.4.0",

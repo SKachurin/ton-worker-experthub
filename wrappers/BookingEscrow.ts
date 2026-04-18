@@ -6,73 +6,70 @@ import {
     Contract,
     ContractProvider,
     Sender,
-    SendMode,
-    StateInit
+    SendMode
 } from '@ton/core';
-
-export const OP_EXPERT_CONFIRM = 0x1001;
-export const OP_EXPERT_DECLINE = 0x1002;
-export const OP_FINALIZE_TO_EXPERT = 0x1003;
-export const OP_REFUND_TO_CUSTOMER = 0x1004;
 
 export type BookingEscrowConfig = {
     customerWallet: Address;
     expertWallet: Address;
     controllerWallet: Address;
     amountNanoTon: bigint;
+
     bookingId: bigint;
     expertTelegramId: bigint;
     customerTelegramId: bigint;
+
     slotStartUnix: bigint;
     expertConfirmationDeadlineUnix: bigint;
     sessionOutcomeDeadlineUnix: bigint;
 };
 
 export function bookingEscrowConfigToCell(config: BookingEscrowConfig): Cell {
-    return beginCell()
+    const partiesCell = beginCell()
         .storeAddress(config.customerWallet)
         .storeAddress(config.expertWallet)
         .storeAddress(config.controllerWallet)
-        .storeCoins(config.amountNanoTon)
+        .endCell();
+
+    const metaCell = beginCell()
         .storeUint(config.bookingId, 64)
         .storeUint(config.expertTelegramId, 64)
         .storeUint(config.customerTelegramId, 64)
         .storeUint(config.slotStartUnix, 64)
         .storeUint(config.expertConfirmationDeadlineUnix, 64)
         .storeUint(config.sessionOutcomeDeadlineUnix, 64)
-        .storeUint(0, 8)
+        .endCell();
+
+    return beginCell()
+        .storeCoins(config.amountNanoTon)
+        .storeUint(0, 8)   // state = STATE_AWAITING_FUNDING
+        .storeUint(0, 64)  // fundedAtUnix
+        .storeUint(0, 64)  // finalizedAtUnix
+        .storeUint(0, 8)   // customerRatingForExpert
+        .storeUint(0, 8)   // expertRatingForCustomer
+        .storeRef(partiesCell)
+        .storeRef(metaCell)
         .endCell();
 }
 
 export class BookingEscrow implements Contract {
-    constructor(
-        readonly address: Address,
-        readonly init?: StateInit
-    ) {}
+    constructor(readonly address: Address, readonly init?: { code: Cell; data: Cell }) {}
 
-    static createFromConfig(config: BookingEscrowConfig, code: Cell, workchain = 0): BookingEscrow {
+    static createFromAddress(address: Address) {
+        return new BookingEscrow(address);
+    }
+
+    static createFromConfig(config: BookingEscrowConfig, code: Cell, workchain = 0) {
         const data = bookingEscrowConfigToCell(config);
         const init = { code, data };
         return new BookingEscrow(contractAddress(workchain, init), init);
-    }
-
-    createStateInitBoc(): string {
-        if (!this.init) {
-            throw new Error('Contract init is missing');
-        }
-
-        return beginCell()
-            .store(storeStateInit(this.init))
-            .endCell()
-            .toBoc()
-            .toString('base64');
     }
 
     async sendExpertConfirm(provider: ContractProvider, via: Sender, value: bigint) {
         await provider.internal(via, {
             value,
             sendMode: SendMode.PAY_GAS_SEPARATELY,
-            body: beginCell().storeUint(OP_EXPERT_CONFIRM, 32).endCell()
+            body: beginCell().storeUint(0x1001, 32).endCell()
         });
     }
 
@@ -80,7 +77,7 @@ export class BookingEscrow implements Contract {
         await provider.internal(via, {
             value,
             sendMode: SendMode.PAY_GAS_SEPARATELY,
-            body: beginCell().storeUint(OP_EXPERT_DECLINE, 32).endCell()
+            body: beginCell().storeUint(0x1002, 32).endCell()
         });
     }
 
@@ -88,7 +85,7 @@ export class BookingEscrow implements Contract {
         await provider.internal(via, {
             value,
             sendMode: SendMode.PAY_GAS_SEPARATELY,
-            body: beginCell().storeUint(OP_FINALIZE_TO_EXPERT, 32).endCell()
+            body: beginCell().storeUint(0x1003, 32).endCell()
         });
     }
 
@@ -96,18 +93,39 @@ export class BookingEscrow implements Contract {
         await provider.internal(via, {
             value,
             sendMode: SendMode.PAY_GAS_SEPARATELY,
-            body: beginCell().storeUint(OP_REFUND_TO_CUSTOMER, 32).endCell()
+            body: beginCell().storeUint(0x1004, 32).endCell()
         });
     }
-}
 
-function storeStateInit(src: StateInit) {
-    return (builder: ReturnType<typeof beginCell>) => {
-        builder.storeBit(false);
-        builder.storeBit(true);
-        builder.storeRef(src.code);
-        builder.storeBit(true);
-        builder.storeRef(src.data);
-        builder.storeBit(false);
-    };
+    async sendSetCustomerRating(
+        provider: ContractProvider,
+        via: Sender,
+        value: bigint,
+        rating: number
+    ) {
+        await provider.internal(via, {
+            value,
+            sendMode: SendMode.PAY_GAS_SEPARATELY,
+            body: beginCell()
+                .storeUint(0x2001, 32)
+                .storeUint(rating, 8)
+                .endCell()
+        });
+    }
+
+    async sendSetExpertRating(
+        provider: ContractProvider,
+        via: Sender,
+        value: bigint,
+        rating: number
+    ) {
+        await provider.internal(via, {
+            value,
+            sendMode: SendMode.PAY_GAS_SEPARATELY,
+            body: beginCell()
+                .storeUint(0x2002, 32)
+                .storeUint(rating, 8)
+                .endCell()
+        });
+    }
 }

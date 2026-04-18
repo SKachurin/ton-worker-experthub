@@ -23,8 +23,11 @@ export const contractActionRequestSchema = z.object({
         'expert_decline',
         'session_connected',
         'customer_no_show',
-        'expert_no_show'
+        'expert_no_show',
+        'set_customer_rating',
+        'set_expert_rating'
     ]),
+    rating: z.number().int().min(1).max(5).optional(),
     reason: z.string().optional().nullable()
 });
 
@@ -35,6 +38,8 @@ export type PrepareBookingContractResponse = {
     contract_address: string;
     state_init_boc: string;
     amount_nano_ton: string;
+    recommended_gas_buffer_nano_ton: string;
+    total_deploy_value_nano_ton: string;
 };
 
 export type ContractActionResponse = {
