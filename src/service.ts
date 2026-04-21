@@ -25,7 +25,7 @@ export class TonWorkerService {
         const escrowConfig: BookingEscrowConfig = {
             customerWallet: parseAddress(payload.customer_wallet),
             expertWallet: parseAddress(payload.expert_wallet),
-            controllerWallet: parseAddress(payload.controller_wallet),
+            controllerWallet: config.controllerWallet,
             amountNanoTon: BigInt(payload.amount_nano_ton),
 
             bookingId: BigInt(payload.booking_id),

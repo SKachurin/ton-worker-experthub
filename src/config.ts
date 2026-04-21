@@ -16,6 +16,7 @@ export const config = {
     tonNetwork: process.env.TON_NETWORK?.trim() || 'testnet',
     tonEndpoint: requireEnv('TON_RPC_ENDPOINT'),
     tonApiKey: process.env.TON_API_KEY?.trim() || '',
+    controllerWallet: requireEnv('TON_CONTROLLER_WALLET'),
     controllerMnemonic: requireEnv('TON_CONTROLLER_MNEMONIC'),
     bookingEscrowArtifactPath:
         process.env.BOOKING_ESCROW_ARTIFACT_PATH?.trim() || 'build/BookingEscrow.compiled.json'

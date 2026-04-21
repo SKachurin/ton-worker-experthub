@@ -7,8 +7,7 @@ export const prepareBookingContractRequestSchema = z.object({
     expert_telegram_id: z.number().int().positive(),
     customer_wallet: z.string().min(1),
     expert_wallet: z.string().min(1),
-    controller_wallet: z.string().min(1),
-    amount_nano_ton: z.string().regex(/^\d+$/, 'amount_nano_ton must be an integer string'),
+    amount_nano_ton: z.string().regex(/^\d+$/, 'amount_nano_ton must be integer string'),
     slot_start_unix: z.number().int().positive(),
     expert_confirmation_deadline_unix: z.number().int().positive(),
     session_outcome_deadline_unix: z.number().int().positive()

@@ -12,9 +12,19 @@ services:
       - TON_NETWORK=${TON_NETWORK}
       - TON_RPC_ENDPOINT=${TON_RPC_ENDPOINT}
       - TON_API_KEY=${TON_API_KEY}
+      - TON_CONTROLLER_WALLET=${TON_CONTROLLER_WALLET}
       - TON_CONTROLLER_MNEMONIC=${TON_CONTROLLER_MNEMONIC}
       - BOOKING_ESCROW_ARTIFACT_PATH=${BOOKING_ESCROW_ARTIFACT_PATH}
     volumes:
       - ./:/app
       - /app/node_modules
+    networks:
+      expert-hub-network:
+        aliases:
+          - ton-worker
     restart: unless-stopped
+
+networks:
+  expert-hub-network:
+    name: expert-hub-network
+    external: true
