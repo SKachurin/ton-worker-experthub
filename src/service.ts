@@ -16,17 +16,38 @@ import { beginCell, storeStateInit } from '@ton/core';
 const DEFAULT_ACTION_GAS_NANO_TON = 50_000_000n;
 const DEFAULT_DEPLOY_GAS_BUFFER_NANO_TON = 150_000_000n;
 
+function tonDecimalToNanoTon(value: string): bigint {
+    const [wholeRaw, fractionRaw = ''] = value.split('.');
+
+    const whole = wholeRaw || '0';
+    const fraction = fractionRaw.padEnd(9, '0').slice(0, 9);
+
+    if (!/^\d+$/.test(whole) || !/^\d{9}$/.test(fraction)) {
+        throw new Error('Invalid TON amount format');
+    }
+
+    return BigInt(whole) * 1_000_000_000n + BigInt(fraction);
+}
+
 export class TonWorkerService {
     async prepareBookingContract(
         payload: PrepareBookingContractRequest
     ): Promise<PrepareBookingContractResponse> {
+        if (payload.currency !== 'TON') {
+            throw new Error('Only TON currency is supported');
+        }
+
         const code = loadBookingEscrowCode();
+
+        const client = await createTonClient();
+        const controller = await createControllerWallet(client);
+        const escrowAmount = tonDecimalToNanoTon(payload.amount);
 
         const escrowConfig: BookingEscrowConfig = {
             customerWallet: parseAddress(payload.customer_wallet),
             expertWallet: parseAddress(payload.expert_wallet),
-            controllerWallet: config.controllerWallet,
-            amountNanoTon: BigInt(payload.amount_nano_ton),
+            controllerWallet: controller.address,
+            amountNanoTon: escrowAmount,
 
             bookingId: BigInt(payload.booking_id),
             expertTelegramId: BigInt(payload.expert_telegram_id),
@@ -49,7 +70,6 @@ export class TonWorkerService {
             .toBoc()
             .toString('base64');
 
-        const escrowAmount = BigInt(payload.amount_nano_ton);
         const totalDeployValue = escrowAmount + DEFAULT_DEPLOY_GAS_BUFFER_NANO_TON;
 
         return {
