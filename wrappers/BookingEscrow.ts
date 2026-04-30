@@ -65,6 +65,21 @@ export class BookingEscrow implements Contract {
         return new BookingEscrow(contractAddress(workchain, init), init);
     }
 
+    async getState(provider: ContractProvider): Promise<number> {
+        const result = await provider.get('getState', []);
+        return result.stack.readNumber();
+    }
+
+    async getAmountNanoTon(provider: ContractProvider): Promise<bigint> {
+        const result = await provider.get('getAmountNanoTon', []);
+        return result.stack.readBigNumber();
+    }
+
+    async getBookingId(provider: ContractProvider): Promise<bigint> {
+        const result = await provider.get('getBookingId', []);
+        return result.stack.readBigNumber();
+    }
+
     async sendExpertConfirm(provider: ContractProvider, via: Sender, value: bigint) {
         await provider.internal(via, {
             value,

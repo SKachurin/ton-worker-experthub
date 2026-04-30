@@ -49,3 +49,12 @@ export type ContractActionResponse = {
     action: string;
     ok: boolean;
 };
+
+export type BookingContractStateResponse = {
+    contract_address: string;
+    account_state: string;
+    balance_nano_ton: string;
+    contract_state: number | null;
+    contract_amount_nano_ton: string | null;
+    is_funded: boolean;
+};

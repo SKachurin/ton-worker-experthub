@@ -1,4 +1,5 @@
 import type {
+    BookingContractStateResponse,
     ContractActionRequest,
     ContractActionResponse,
     PrepareBookingContractRequest,
@@ -159,6 +160,45 @@ export class TonWorkerService {
             contract_address: payload.contract_address,
             action: payload.action,
             ok: true
+        };
+    }
+
+    async getBookingContractState(
+        contractAddress: string
+    ): Promise<BookingContractStateResponse> {
+        const client = await createTonClient();
+
+        const address = parseAddress(contractAddress);
+        const provider = client.provider(address);
+        const contract = new BookingEscrow(address);
+
+        const accountState = await provider.getState();
+
+        let contractState: number | null = null;
+        let contractAmountNanoTon: string | null = null;
+
+        if (accountState.state.type === 'active') {
+            contractState = await contract.getState(provider);
+
+            try {
+                const amount = await contract.getAmountNanoTon(provider);
+                contractAmountNanoTon = amount.toString();
+            } catch (error) {
+                console.error(
+                    `[ton-worker] failed to read getAmountNanoTon for ${contractAddress}`,
+                    error
+                );
+                contractAmountNanoTon = null;
+            }
+        }
+
+        return {
+            contract_address: address.toString(),
+            account_state: accountState.state.type,
+            balance_nano_ton: accountState.balance.toString(),
+            contract_state: contractState,
+            contract_amount_nano_ton: contractAmountNanoTon,
+            is_funded: contractState === 1
         };
     }
 }

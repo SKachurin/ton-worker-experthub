@@ -12,11 +12,13 @@ The worker is intentionally separate from the Rust backend.
 
 The TON Worker is responsible for TON-specific mechanics only:
 
+The worker now also exposes a contract-state endpoint used by the Rust backend after TON Connect wallet return. The frontend does not verify payment directly. The frontend only asks the Rust backend to confirm payment, and the Rust backend asks the worker to read escrow contract state.
+
 - loading the compiled `BookingEscrow` contract artifact
 - preparing unique per-booking contract deployment data
 - returning deterministic contract address and StateInit data
 - sending controller/admin action messages to deployed escrow contracts
-- later reading contract state if needed
+- reading deployed escrow contract state for backend funding verification
 
 The TON Worker does **not** own marketplace business logic.
 
@@ -67,6 +69,16 @@ TON_WORKER_BASE_URL=http://ton-worker:8081
 ```
 
 ---
+
+## Deploy
+
+```text
+cd /opt/ton-worker-experthub
+git pull
+docker compose --env-file .env up -d --build
+curl http://127.0.0.1:8081/health
+docker logs ton-worker-experthub --since 5m
+```
 
 ## Current project structure
 
@@ -302,6 +314,60 @@ When the customer approves this transaction in the wallet, TON deploys and funds
 
 ---
 
+## Read booking contract state
+
+```http
+GET /contracts/{contract_address}/state
+```
+
+This endpoint is called by the Rust backend after the customer wallet returns control to the Telegram Mini App.
+
+Purpose:
+
+* verify that the escrow contract exists on-chain
+* verify that the contract is active
+* read the contract state
+* read the contract booking id
+* read the contract amount
+* read the current contract balance
+* determine whether the escrow is funded
+
+Example response:
+
+```json
+{
+  "contract_address": "EQ...",
+  "account_state": "active",
+  "balance_nano_ton": "188000938",
+  "contract_state": 1,
+  "contract_booking_id": 25,
+  "contract_amount_nano_ton": "38167939",
+  "is_funded": true
+}
+```
+
+Meaning:
+
+* `account_state` — TON account state, expected `active` after successful deploy/fund transaction
+* `balance_nano_ton` — current contract balance
+* `contract_state` — escrow contract internal state
+* `contract_booking_id` — booking id stored inside the escrow contract
+* `contract_amount_nano_ton` — escrow amount stored inside the contract
+* `is_funded` — worker-side funding result based on account/contract state and balance
+
+Expected funded state:
+
+```text
+account_state = active
+contract_state = 1
+contract_booking_id = booking.id
+is_funded = true
+```
+
+The Rust backend must still make the final decision and update local DB state.
+
+---
+
 ## Contract action
 
 ```http
@@ -380,9 +446,9 @@ Response shape:
 
 ---
 
-## Intended main-app booking flow
+## Current main-app booking flow
 
-The main Expert Hub backend should integrate with TON Worker like this:
+The main Expert Hub backend currently integrates with TON Worker like this:
 
 1. Customer selects a slot on `/e/{slug}`
 2. Rust backend creates booking/payment draft
@@ -394,29 +460,53 @@ POST /contracts/prepare-booking
 
 4. Rust backend stores:
     - `contract_address`
-    - `state_init_boc`
-    - `amount_nano_ton`
-    - payment status such as `waiting_customer_payment`
+    - transaction reference / worker metadata
+    - payment status `awaiting_payment`
+    - booking status `awaiting_payment`
 5. Frontend opens TON Connect payment using `contract_address` + `state_init_boc`
 6. Customer approves wallet transaction
-7. Backend verifies contract deployment/funding
-8. Backend marks payment as funded
-9. Backend asks expert to confirm the slot
-10. If expert confirms:
-    - backend calls worker action: `expert_confirm`
-    - booking becomes active / waiting for session
-11. If expert declines:
-    - backend calls worker action: `expert_decline`
-    - contract refunds customer
-    - booking becomes rejected / refunded
-12. Telegram watcher later detects consultation outcome
-13. Backend calls worker action:
-    - `session_connected` -> pay expert
-    - `customer_no_show` -> pay expert
-    - `expert_no_show` -> refund customer
-14. After finalization, backend can submit ratings:
-    - `set_customer_rating`
-    - `set_expert_rating`
+7. Telegram Wallet returns control to the Mini App
+8. Frontend calls Rust backend payment confirmation endpoint
+9. Rust backend calls TON Worker:
+
+```http
+GET /contracts/{contract_address}/state
+```
+
+10. TON Worker reads on-chain contract state
+11. Rust backend verifies:
+    - contract is active
+    - contract state is funded
+    - contract booking id matches local booking id
+    - funding/balance check passes
+12. Rust backend marks:
+    - `payments.status = funded`
+    - `bookings.status = funded`
+13. Rust backend sends Telegram Bot notification to the expert
+14. Expert Confirm/Decline callback flow is the next hardening step
+
+After expert confirmation:
+
+```text
+backend calls worker action: expert_confirm
+booking.status = waiting_for_session
+```
+
+After expert decline:
+
+```text
+backend calls worker action: expert_decline
+booking.status = refunded
+payment.status = refunded
+```
+
+Later, session detection will call one of:
+
+```text
+session_connected -> pay expert
+customer_no_show  -> pay expert
+expert_no_show    -> refund customer
+```
 
 ---
 
@@ -455,14 +545,25 @@ bookings.requested_by_telegram_id
 bookings.requested_by_ton_wallet
 ```
 
-Next main integration milestone:
+Current Rust integration already covers:
+
+* booking/payment draft creation
+* `POST /contracts/prepare-booking`
+* passing `contract_address`, `state_init_boc`, and TON amount to frontend
+* frontend TON Connect deploy/fund transaction
+* backend payment confirmation after wallet return
+* worker contract-state check
+* booking/payment transition to `funded`
+
+Next Rust integration milestones:
 
 ```text
-Connect Rust booking/payment draft creation to:
-POST /contracts/prepare-booking
+Finish expert Confirm/Decline callback handling.
+Verify expert_confirm action end-to-end.
+Verify expert_decline action end-to-end.
+Move confirmed bookings from funded to waiting_for_session.
+Notify customer after expert confirms or declines.
 ```
-
-Then pass returned `contract_address`, `state_init_boc`, and `amount_nano_ton` to frontend TON Connect payment flow.
 
 ---
 
@@ -539,13 +640,35 @@ Current milestone achieved:
 - BookingEscrow contract exists in Tolk
 - contract compiles successfully with Blueprint
 - worker can prepare a unique contract address and StateInit for a booking
+- Rust backend calls worker `POST /contracts/prepare-booking`
+- frontend receives contract address, StateInit, and amount
+- frontend sends TON Connect deploy/fund transaction
+- Telegram Wallet can approve the testnet transaction and return control to the Mini App
+- worker exposes contract-state reading endpoint
+- Rust backend uses worker state endpoint during `/confirm-payment`
+- funded escrow contract state has been verified on testnet
+- booking/payment can move to `funded` after successful backend verification
+- backend Telegram Bot notification after funding verification is wired
 - contract includes escrow money state and simple post-finalization ratings
 
 Next milestone:
 
 ```text
-Connect Rust booking/payment draft creation to:
-POST /contracts/prepare-booking
+Finish and harden expert Confirm/Decline callback handling,
+then verify expert_confirm and expert_decline contract actions end-to-end.
 ```
 
-Then pass returned contract data to frontend TON Connect payment flow.
+---
+
+## Recent changes
+
+Recent worker-side changes touched:
+
+```text
+contracts/booking_escrow.tolk
+wrappers/BookingEscrow.ts
+src/dto.ts
+src/server.ts
+src/service.ts
+README.md
+```

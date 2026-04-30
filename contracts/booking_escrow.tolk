@@ -197,6 +197,11 @@ get fun getState(): uint8 {
     return storage.state;
 }
 
+get fun getAmountNanoTon(): coins {
+    val storage = lazy Storage.load();
+    return storage.amountNanoTon;
+}
+
 get fun getBookingId(): uint64 {
     val storage = lazy Storage.load();
     val meta = lazy storage.meta.load();

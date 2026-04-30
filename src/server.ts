@@ -78,6 +78,19 @@ app.post('/contracts/:address/action', requireInternalAuth, async (req, res) => 
     }
 });
 
+app.get('/contracts/:address/state', requireInternalAuth, async (req, res) => {
+    try {
+        const address = String(req.params.address);
+        const result = await service.getBookingContractState(address);
+        res.json(result);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({
+            error: error instanceof Error ? error.message : 'internal error'
+        });
+    }
+});
+
 app.listen(config.port, '0.0.0.0', () => {
     console.log(`ton-worker listening on ${config.port}`);
 });
